@@ -13,6 +13,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 from bs4 import BeautifulSoup
 import logging
+import fitz
 
 # Load environment variables from .env file
 load_dotenv()
@@ -29,8 +30,8 @@ class RAG:
         if pinecone_index_name:
             self.pinecone_index_name = pinecone_index_name
         else:
-            self.pinecone_index_name = os.getenv('PINECONE_INDEX_NAME', 'dukechatbot0413')
-
+            self.pinecone_index_name = os.getenv('PINECONE_INDEX_NAME', 'duke-rads-chat')
+        logger.info(f'The pinecone index is {self.pinecone_index_name}')
         # openai
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         self.openai_embedding_model = openai_embedding_model
@@ -64,7 +65,10 @@ class RAG:
             self.create_pinecone()
 
     # Create the Pinecone store
-    def create_pinecone(self):
+    def create_pinecone(self, index_name = None):
+        if index_name:
+            self.pinecone_index_name = index_name
+        
         if self.verbose:
             logger.info('Creating Pinecone index')
         if self.pinecone_index_name not in self.pc.list_indexes().names():
@@ -117,6 +121,7 @@ class RAG:
             chunks.append(current_chunk)
 
         return chunks
+
 
     def process_text(self, source, text, chunk_id):
         """
@@ -278,6 +283,23 @@ class RAG:
                 logger.error(f"Error in connecting to the HuggingFace API: {e}")
                 return "Error in connecting to the HuggingFace API. Please wait a few minutes or try using GPT (toggle above). Additionally, you can click the 'View Source' button to view a relevant web page."
 
+    def remove_bullet_points(self, text):
+        """
+        Removes common bullet points and similar characters from the text.
+
+        Input:
+            self
+            text (str): The input text.
+        Output:
+            text (str): The cleaned text without bullet points.
+        """
+        bullet_points = ['•', '–']
+        for bullet in bullet_points:
+            text = text.replace(bullet, '')
+        # Remove multiple spaces caused by the replacements
+        text = re.sub(r'\s+', ' ', text)
+        return text
+
     def process_pdf(self, pdf_file):
         """
         Extracts text from a PDF file and processes it into chunks.
@@ -288,11 +310,13 @@ class RAG:
         Output:
             No output. Calls process_text to add to the vector store.
         """
-        reader = PdfReader(pdf_file)
-        text = ""
-        for page_num, page in enumerate(reader.pages):
-            text += page.extract_text()
+        doc = fitz.open(pdf_file)
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            text = page.get_text()
             source = f"{os.path.basename(pdf_file)}_page_{page_num + 1}"
+            text = self.clean_extracted_text(text)
+            text = self.remove_bullet_points(text)
             chunks = self.chunk_text(text)
             if isinstance(chunks, list):
                 for i, chunk in enumerate(chunks):
@@ -312,6 +336,8 @@ class RAG:
         """
         doc = Document(docx_file)
         text = "\n".join([para.text for para in doc.paragraphs])
+        text = self.clean_extracted_text(text)
+        text = self.remove_bullet_points(text)
         source = os.path.basename(docx_file)
         chunks = self.chunk_text(text)
         if isinstance(chunks, list):
@@ -378,6 +404,27 @@ class RAG:
         """
         for url in urls:
             self.process_url(url, auth)
+    
+    def extract_text_with_pymupdf(self, pdf_file):
+        doc = fitz.open(pdf_file)
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        return text
+
+    def clean_extracted_text(self, text):
+        # Replace multiple spaces with a single space
+        text = re.sub(r'\s+', ' ', text)
+        # Add space after punctuation if missing
+        text = re.sub(r'(?<=[.,])(?=[^\s])', r' ', text)
+        return text
+
+    def extract_text_from_docx(self, docx_file):
+        doc = Document(docx_file)
+        text = "\n".join([para.text for para in doc.paragraphs])
+        return text
+
+
 
 # Example usage with command-line argument for specifying the JSON file
 if __name__ == "__main__":
@@ -390,10 +437,12 @@ if __name__ == "__main__":
     parser.add_argument("--urls", nargs='+', help="List of URLs of webpages containing text data.")
     parser.add_argument("--username", help="Username for authenticating URL access.")
     parser.add_argument("--password", help="Password for authenticating URL access.")
+    parser.add_argument("--clear", help="Clear the pinecone index.")
+    parser.add_argument("--create", help = "Create a new pinecone index with this name.")
     args = parser.parse_args()
 
     # Initialize your RAG instance
-    rag = RAG()
+    rag = RAG(pinecone_index_name=args.create, verbose=True)
 
     if args.json_file:
         rag.populate_pinecone(args.json_file)
@@ -407,6 +456,12 @@ if __name__ == "__main__":
     if args.directory:
         rag.process_directory(args.directory)
 
+    if args.clear:
+        rag.clear_pinecone(args.clear)
+
+    if args.create:
+        rag.create_pinecone(args.create)
+
     auth = None
     if args.username and args.password:
         auth = (args.username, args.password)
@@ -417,12 +472,4 @@ if __name__ == "__main__":
     if args.urls:
         rag.process_urls(args.urls, auth=auth)
 
-    # Query the pinecone vector storage
-    phrase = 'How do I get a roommate?'
-    similar_faq, similar_score = rag.get_similar_faq(phrase)
-    logger.info(f'Matching text: {similar_faq}\nScore: {similar_score}')
-
-    llm_response, sources = rag.generate_response(phrase)
-    logger.info(llm_response)
-    if sources:
-        logger.info(f'Learn more by clicking {sources[0]}')
+    
