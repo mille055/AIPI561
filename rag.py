@@ -3,7 +3,7 @@ import hashlib
 import os
 import re
 import json
-from docx import Document
+#from docx import Document
 from PyPDF2 import PdfReader
 from transformers import AutoModelForCausalLM, AutoTokenizer, PipelineTool
 from openai import OpenAI
