@@ -7,6 +7,7 @@ import json
 from PyPDF2 import PdfReader
 from transformers import AutoModelForCausalLM, AutoTokenizer, PipelineTool
 from openai import OpenAI
+#import pinecone
 from pinecone import init, Index, Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 import requests
@@ -57,6 +58,7 @@ class RAG:
         self.text_to_replace = ["© Copyright 2011-2024 Duke University", "Jump to navigation"]
 
         # Initialize Pinecone client
+        #self.pc = pinecone.init(api_key=self.pinecone_api_key)
         self.pc = Pinecone(api_key=self.pinecone_api_key)
 
         if self.pinecone_index_name in self.pc.list_indexes().names():

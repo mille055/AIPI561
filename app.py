@@ -1,11 +1,12 @@
 import streamlit as st
+from pinecone import init, Index, Pinecone, ServerlessSpec
 from rag import RAG
 import os
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-use_gpt = False
+use_gpt = True
 
 # Initialize RAG with environment variables or directly with your keys
 rag = RAG(use_gpt=use_gpt)
