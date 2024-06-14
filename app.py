@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 use_gpt = True
+use_faq = False
 
 # Initialize RAG with environment variables or directly with your keys
 rag = RAG(use_gpt=use_gpt)
@@ -75,7 +76,7 @@ def run_UI():
     avatar_user = 'assets/Blue_question_mark_icon.png'
     avatar_assistant = 'assets/duke_d_2.png'
     
-    st.image('assets/mashup_duke_image_title.png', caption='Duke University')
+    st.image('assets/duke_chapel_blue.png', caption='Duke University')
 
     # Initialize or retrieve the conversation history from the session state
     if 'conversation_history' not in st.session_state:
@@ -84,8 +85,8 @@ def run_UI():
     if 'use_gpt' not in st.session_state:
         st.session_state.use_gpt = use_gpt
 
-    if 'use_faq' not in st.session_state:
-        st.session_state.use_faq = True
+    # if 'use_faq' not in st.session_state:
+    #     st.session_state.use_faq = True
     
      # Add a checkbox widget for toggling GPT functionality
     st.session_state.use_gpt = st.checkbox('Use GPT')
@@ -115,16 +116,16 @@ def run_UI():
             #whole_prompt = 'Please answer the following query and generate a response. please do not include phrases like the text discusses... or the text outlines...:' + prompt + 'and the following context may be helpful' + " ".join([message['content'] for message in st.session_state.conversation_history])
 
             #faq attempt
-            if st.session_state.use_faq:
-                response_text, score = rag.get_similar_faq(prompt)
-                if response_text:
-                    sources = ['https://mille055.github.io/duke_chatbot/data/faqs.html'] # static faq website
-                    response_text = 'From the FAQs:  ' + response_text + ' For more information from the FAQs click the "View Source" button below.'
+            # if st.session_state.use_faq:
+            #     response_text, score = rag.get_similar_faq(prompt)
+            #     if response_text:
+            #         sources = ['https://mille055.github.io/duke_chatbot/data/faqs.html'] # static faq website
+            #         response_text = 'From the FAQs:  ' + response_text + ' For more information from the FAQs click the "View Source" button below.'
                     
-                else:
-                    # select the model to be used
-                    rag.use_gpt = st.session_state.use_gpt
-                    response_text, sources = rag.generate_response(prompt)
+           
+            # select the model to be used
+            rag.use_gpt = st.session_state.use_gpt
+            response_text, sources = rag.generate_response(prompt)
 
             # Append response to conversation history and display 
             st.session_state.conversation_history.append({"role": "assistant", "content": response_text, "avatar": avatar_assistant})        

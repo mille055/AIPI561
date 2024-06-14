@@ -38,6 +38,7 @@ class RAG:
         self.openai_embedding_model = openai_embedding_model
         self.openai_engine = openai_engine
         self.openai_client = OpenAI(api_key=self.openai_api_key)
+        self.llamafile_client = OpenAI(base_url="http://localhost:8080/v1", api_key="sk-no-key-required")
         self.use_gpt = use_gpt
         # text chunking and semantic search
         self.chunk_size = chunk_size
