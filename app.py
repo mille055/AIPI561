@@ -1,8 +1,10 @@
 import streamlit as st
 from pinecone import init, Index, Pinecone, ServerlessSpec
 from rag import RAG
-import os
+import os, io
 from dotenv import load_dotenv
+import fitz
+from PIL import Image
 
 # Load environment variables
 load_dotenv()
@@ -25,6 +27,26 @@ def user_message(message):
     st.markdown(f'<div class="user-message" style="display: flex; padding: 5px;">'
                 f'<div style="background-color: #00539B; color: white; padding: 10px; border-radius: 10px; font-size:18px; margin-bottom:10px; margin-left:15px;">{message}</div>'
                 f'</div>', unsafe_allow_html=True)
+
+
+def get_page_image(pdf_file_path, page_num):
+    """
+    Extracts and returns a specific page image from a PDF file.
+
+    Args:
+        pdf_file_path (str): The path to the PDF file.
+        page_num (int): The page number to extract the image for.
+
+    Returns:
+        BytesIO object containing the image.
+    """
+    pdf_document = fitz.open(pdf_file_path)
+    page = pdf_document.load_page(page_num)
+    pix = page.get_pixmap()
+
+    #image_bytes = io.BytesIO(pix.getPNGData())
+    image_bytes = io.BytesIO(pix.tobytes(output="png"))
+    return image_bytes
 
 
 def run_UI():
@@ -131,11 +153,26 @@ def run_UI():
             st.session_state.conversation_history.append({"role": "assistant", "content": response_text, "avatar": avatar_assistant})        
             bot_message(response_text)
         
-        # button to display source html
+        # button to display source html or PDF page image
         if sources:
-            st.markdown(f"<div style='text-align: right;'><a href='{sources[0]}' target='_blank'><button style='background-color: #3F7D7B; color: white; padding: 10px 24px; margin: 10px; border: none; border-radius: 12px; cursor: pointer;'>View Source</button></a></div>", unsafe_allow_html=True)
+            source = sources[0]
+            
+            if 'http://' in source or 'https://' in source:
+                st.markdown(f"<div style='text-align: right;'><a href='{source}' target='_blank'><button style='background-color: #3F7D7B; color: white; padding: 10px 24px; margin: 10px; border: none; border-radius: 12px; cursor: pointer;'>View Source</button></a></div>", unsafe_allow_html=True)
+            
+            elif 'pdf' in source:
+                st.write('PDF source detected.')
+                # Extract the filename and page number
+                pagenumber = int(source.split('_')[-1])
+                filename = os.path.join('data/docs/', source.split('_page')[0])
+                print('page:', pagenumber)
+                print('doc:', filename)
+                # Get and display the PDF page image
+                image_bytes = get_page_image(filename, pagenumber-1)
+                
+                image = Image.open(image_bytes)
+                st.image(image, caption=f"Page {pagenumber} of {os.path.basename(filename)}")
 
-          
            
 if __name__ == "__main__":
     run_UI()
