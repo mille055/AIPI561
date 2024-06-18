@@ -91,6 +91,18 @@ def run_UI():
         .st-checkbox span {
                 color: black;
         }
+        .custom-button {
+            background-color: #3F7D7B;
+            color: white;
+            padding: 10px 24px;
+            margin: 10px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            display: inline-block;
+            text-decoration: none;
+        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -153,25 +165,52 @@ def run_UI():
             st.session_state.conversation_history.append({"role": "assistant", "content": response_text, "avatar": avatar_assistant})        
             bot_message(response_text)
         
-        # button to display source html or PDF page image
-        if sources:
-            source = sources[0]
-            
-            if 'http://' in source or 'https://' in source:
+            # Store sources in session state to access them later
+            st.session_state.sources = sources
+
+        # # button to display source
+        # if sources:
+        #     source = sources[0]
+        #     if st.button("View Source"):
+        #         if 'http://' in source or 'https://' in source:
+        #             st.markdown(f"<div style='text-align: right;'><a href='{source}' target='_blank'><button style='background-color: #3F7D7B; color: white; padding: 10px 24px; margin: 10px; border: none; border-radius: 12px; cursor: pointer;'>View Source</button></a></div>", unsafe_allow_html=True)
+        #         elif 'pdf' in source:
+        #             st.write('PDF source detected.')
+        #             # Extract the filename and page number
+        #             try:
+        #                 pagenumber = int(source.split('_')[-1])
+        #                 filename = os.path.join('data/docs/', source.split('_page')[0])
+        #                 st.write('Page:', pagenumber)
+        #                 st.write('Document:', filename)
+        #                 # Get and display the PDF page image
+        #                 image_bytes = get_page_image(filename, pagenumber - 1)
+        #                 image = Image.open(image_bytes)
+        #                 st.image(image, caption=f"Page {pagenumber} of {os.path.basename(filename)}")
+        #             except Exception as e:
+        #                 st.write(f"Error processing PDF: {e}")
+
+        # button to display source
+    if 'sources' in st.session_state:
+        source = st.session_state.sources[0]
+        #st.write(f"Source detected: {source}")  # Debug output to show the detected source
+
+        if 'http://' in source or 'https://' in source:
+            if st.button("View Source"):
                 st.markdown(f"<div style='text-align: right;'><a href='{source}' target='_blank'><button style='background-color: #3F7D7B; color: white; padding: 10px 24px; margin: 10px; border: none; border-radius: 12px; cursor: pointer;'>View Source</button></a></div>", unsafe_allow_html=True)
-            
-            elif 'pdf' in source:
-                st.write('PDF source detected.')
-                # Extract the filename and page number
-                pagenumber = int(source.split('_')[-1])
-                filename = os.path.join('data/docs/', source.split('_page')[0])
-                print('page:', pagenumber)
-                print('doc:', filename)
-                # Get and display the PDF page image
-                image_bytes = get_page_image(filename, pagenumber-1)
-                
-                image = Image.open(image_bytes)
-                st.image(image, caption=f"Page {pagenumber} of {os.path.basename(filename)}")
+        elif 'pdf' in source:
+            #st.write('PDF source detected.')
+            if st.button("View Source"):
+                #st.markdown(f"<div style='text-align: right;'><button style='background-color: #3F7D7B; color: white; padding: 10px 24px; margin: 10px; border: none; border-radius: 12px; cursor: pointer;' onClick='window.location.href = window.location.href;'>View PDF Source</button></div>", unsafe_allow_html=True)
+                try:
+                    pagenumber = int(source.split('_')[-1])
+                    filename = os.path.join('data/docs/', source.split('_page')[0])
+                    #st.write(filename, pagenumber)
+                    # Get and display the PDF page image
+                    image_bytes = get_page_image(filename, pagenumber - 1)
+                    image = Image.open(image_bytes)
+                    st.image(image, caption=f"Page {pagenumber} of {os.path.basename(filename)}")
+                except Exception as e:
+                    st.write(f"Error processing PDF: {e}")
 
            
 if __name__ == "__main__":

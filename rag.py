@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class RAG:
-    def __init__(self, openai_embedding_model='text-embedding-3-small', openai_engine='gpt-3.5-turbo', top_k=3, search_threshold=0.8, max_token_length=512, chunk_size=500, chunk_overlap=25, pinecone_index_name=None, llm_url=None, use_gpt=False, verbose=False):
+    def __init__(self, llama_embedding_url='http://localhost:8000/embeddings', llama_completion_url='http://localhost:8000/completions', openai_embedding_model='text-embedding-3-small', openai_engine='gpt-3.5-turbo', top_k=3, search_threshold=0.8, max_token_length=512, chunk_size=500, chunk_overlap=25, pinecone_index_name=None, llm_url=None, use_gpt=False, verbose=False):
         # pinecone
         self.pinecone_api_key = os.getenv('PINECONE_API_KEY')
         # index: can pass index or get environment variable; if none, use default
@@ -37,9 +37,14 @@ class RAG:
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         self.openai_embedding_model = openai_embedding_model
         self.openai_engine = openai_engine
-        self.openai_client = OpenAI(api_key=self.openai_api_key)
-        self.llamafile_client = OpenAI(base_url="http://localhost:8080/v1", api_key="sk-no-key-required")
+        self.openai_client = OpenAI(api_key=self.openai_api_key) 
         self.use_gpt = use_gpt
+
+        # llama
+        self.llama_embedding_url = llama_embedding_url
+        self.llamafile_client = OpenAI(base_url="http://localhost:8080/v1", api_key="sk-no-key-required")
+        self.llama_completion_url = llama_completion_url
+
         # text chunking and semantic search
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -244,8 +249,10 @@ class RAG:
         Output:
             chat_message (str): The output message from the model
         """
+        message = [{"role": "assistant", "content": "You are a trusted advisor helping to explain the text to prospective or current students who are seeking answers to questions"}, {"role": "user", "content": prompt}]
+        
         if self.use_gpt:
-            message = [{"role": "assistant", "content": "You are a trusted advisor helping to explain the text to prospective or current students who are seeking answers to questions"}, {"role": "user", "content": prompt}]
+            # message = [{"role": "assistant", "content": "You are a trusted advisor helping to explain the text to prospective or current students who are seeking answers to questions"}, {"role": "user", "content": prompt}]
             if self.verbose:
                 logger.debug(f'Debug: message is {message}')
                 logger.debug(f'using gpt is: {self.use_gpt}')
@@ -266,25 +273,44 @@ class RAG:
                 return "Error in generating response"
 
         else:
-            # Using the custom LLM HuggingFace endpoint
-            headers = {
-                "Authorization": f"Bearer {self.llm_token}"
-            }
-            payload = {
-                "inputs": prompt
-            }
-            try:
-                response = requests.post(self.llm_url, headers=headers, json=payload)
-                response_data = response.json()
-                response_text = response_data[0].get("generated_text", "No response generated.")
-                response_text = response_text.replace(self.prompt_instruction, ' ').replace('#', ' ').split('User Query')[0]
-                for phrase in self.text_to_replace:
-                    response_text = response_text.replace(phrase, ' ')
+            # # Using the custom LLM HuggingFace endpoint
+            # headers = {
+            #     "Authorization": f"Bearer {self.llm_token}"
+            # }
+            # payload = {
+            #     "inputs": prompt
+            # }
+            # try:
+            #     response = requests.post(self.llm_url, headers=headers, json=payload)
+            #     response_data = response.json()
+            #     response_text = response_data[0].get("generated_text", "No response generated.")
+            #     response_text = response_text.replace(self.prompt_instruction, ' ').replace('#', ' ').split('User Query')[0]
+            #     for phrase in self.text_to_replace:
+            #         response_text = response_text.replace(phrase, ' ')
 
-                return response_text
+            #     return response_text
+            # except Exception as e:
+            #     logger.error(f"Error in connecting to the HuggingFace API: {e}")
+            #     return "Error in connecting to the HuggingFace API. Please wait a few minutes or try using GPT (toggle above). Additionally, you can click the 'View Source' button to view a relevant web page."
+
+            # Using local llamafile
+            try:
+                completion = self.llamafile_client.chat.completions.create(
+                    model="LLaMA_CPP",
+                    messages=message    
+                )
+                #response = requests.post(self.llama_completion_url, json={"text": prompt, "max_tokens": 300, "temperature": 0.1})
+                response = completion.choices[0].message
+                #chat_message = response.json()['generated_text']
+                chat_message = response
+                print(repsonse)
+                return chat_message
+
+
+
             except Exception as e:
-                logger.error(f"Error in connecting to the HuggingFace API: {e}")
-                return "Error in connecting to the HuggingFace API. Please wait a few minutes or try using GPT (toggle above). Additionally, you can click the 'View Source' button to view a relevant web page."
+                logger.error(f"Error in generating response: {e}")
+                return "Error in generating response"
 
     def remove_bullet_points(self, text):
         """
