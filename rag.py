@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class RAG:
-    def __init__(self, llama_embedding_url='http://localhost:8000/embeddings', llama_completion_url='http://localhost:8000/completions', openai_embedding_model='text-embedding-3-small', openai_engine='gpt-3.5-turbo', top_k=3, search_threshold=0.8, max_token_length=512, chunk_size=500, chunk_overlap=25, pinecone_index_name=None, llm_url=None, use_gpt=False, verbose=False):
+    def __init__(self, llama_embedding_url='http://localhost:8080/embeddings', llama_completion_url='http://localhost:8080/completions', openai_embedding_model='text-embedding-3-small', openai_engine='gpt-3.5-turbo', top_k=3, search_threshold=0.8, max_token_length=512, chunk_size=500, chunk_overlap=25, pinecone_index_name=None, llm_url=None, use_gpt=False, verbose=True):
         # pinecone
         self.pinecone_api_key = os.getenv('PINECONE_API_KEY')
         # index: can pass index or get environment variable; if none, use default
@@ -227,7 +227,7 @@ class RAG:
             combined_chunks = " ".join(texts)
             summarized_response = self.openai_client.chat.completions.create(
                 model=self.openai_engine,
-                messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "Summarize the following text:\n" + combined_chunks + "Please provide a concise summary to prospective students who are seeking answers to questions, starting directly with the key points without introductory phrases like 'The text discusses', 'The text outlines', 'The text covers', 'The text provided' or 'The text introduces'. Please generate text in complete sentences. Please also do not over-summarize, students need useful information"}],
+                messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "Summarize the following text:\n" + combined_chunks + "Please provide a concise summary to radiology residents who are seeking answers to questions, starting directly with the key points without introductory phrases like 'The text discusses', 'The text outlines', etc. Please generate a response in complete sentences. Please also do not over-summarize, the response needs useful information"}],
                 max_tokens=300,
                 temperature=0.1
             )
@@ -249,8 +249,9 @@ class RAG:
         Output:
             chat_message (str): The output message from the model
         """
-        message = [{"role": "assistant", "content": "You are a trusted advisor helping to explain the text to prospective or current students who are seeking answers to questions"}, {"role": "user", "content": prompt}]
-        
+        message = [{"role": "assistant", "content": "You are a trusted advisor helping to answer queries from radiology residents who are seeking answers to questions about their working environment."}, {"role": "user", "content": prompt}]
+        if self.verbose:
+            logger.info(f'Debug: message is {message}')
         if self.use_gpt:
             # message = [{"role": "assistant", "content": "You are a trusted advisor helping to explain the text to prospective or current students who are seeking answers to questions"}, {"role": "user", "content": prompt}]
             if self.verbose:
@@ -258,15 +259,43 @@ class RAG:
                 logger.debug(f'using gpt is: {self.use_gpt}')
             try:
                 response = self.openai_client.chat.completions.create(
-                    model=self.openai_engine,
-                    messages=message,
-                    max_tokens=300,
-                    temperature=0.1
-                )
+                     model=self.openai_engine,
+                     messages=message,
+                     max_tokens=300,
+                     temperature=0.1
+                 )
+                logger.info(f'Debug: response is {response}')
+                # headers = {"Content-Type": "application/json"}
+                # payload = {
+                #         "messages": message,
+                #         "model": "LLaMA_CPP",
+                #         "max_tokens": 300,
+                #         "temperature": 0.1
+                #     }
+                # response = requests.post(self.llama_completion_url, headers=headers, json=payload)
+                # logger.debut(f'Debug: response is {response}')
+                # response.raise_for_status()  # Raise an error for bad responses
+                # completion = response.json()
+                # logger.debug(f'Debug: completion is {completion}')
+                # chat_message = completion['choices'][0]['message']['content']
+                # return chat_message
                 # Extracting the content from the response
-                chat_message = response.choices[0].message.content
-
+                # options = {
+                #     "temperature": 0.1,
+                #     "seed": 0,
+                #     }
+                # response = requests.post(
+                #     url=self.llama_completion_url,
+                #     headers={"Content-Type": "application/json"},
+                #     json={"prompt": prompt, **options},
+                #     )
+                # response.raise_for_status()
+                # chat_message = response.json()["content"]
+                
+                
+                #chat_message = response.choices[0].message.content
                 return chat_message
+                
 
             except Exception as e:
                 logger.error(f"Error in generating response: {e}")
@@ -295,15 +324,29 @@ class RAG:
 
             # Using local llamafile
             try:
+                logger.debug(f'Debug: message is {message}')
                 completion = self.llamafile_client.chat.completions.create(
                     model="LLaMA_CPP",
-                    messages=message    
+                    messages=message,
+                    temperature = 0.1
                 )
+                logger.info('completion:', completion)
                 #response = requests.post(self.llama_completion_url, json={"text": prompt, "max_tokens": 300, "temperature": 0.1})
-                response = completion.choices[0].message
+                chat_message = completion.choices[0].message.content
                 #chat_message = response.json()['generated_text']
-                chat_message = response
-                print(repsonse)
+                
+
+                 #headers = {"Content-Type": "application/json"}
+                # payload = {
+                #         "messages": message,
+                #         "model": "LLaMA_CPP",
+                #         "max_tokens": 300,
+                #         "temperature": 0.1
+                #     }
+                # response = requests.post(self.llama_completion_url, headers=headers, json=payload)
+
+                if self.verbose:
+                    logger.info('DEBUG: chat_message is', chat_message)
                 return chat_message
 
 
